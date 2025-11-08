@@ -749,7 +749,7 @@
             console.log(`Fetching BKT prediction for node: ${node['scd:referenceCode']} (${nodeId})`);
             
             // Get the current actor from xAPI statements
-            const actor = ADL.XAPIWrapper.lrs.actor;
+            const actor = ADL.XAPIWrapper.lrs.actor || {"objectType": "Agent","openid": "https://example.com/users/user-v1:1abcb33beeb811dca15f0ac3e47b887b"};
             if (!actor) {
                 console.error('No xAPI actor found - cannot fetch BKT predictions');
                 continue;
