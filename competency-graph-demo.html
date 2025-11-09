@@ -776,7 +776,7 @@
             // Split credentials into auth_id and auth_secret
             const [authId, authSecret] = CONFIG.xapi.credentials.split(':');
             const params = {
-              competency_id: nodeId,
+              competency_id: node['scd:referenceCode'],
               user_id: userId,
               lrs_url: CONFIG.xapi.endpoint,
               auth_id: authId,
