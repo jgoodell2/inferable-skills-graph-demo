@@ -276,11 +276,10 @@
           headers: {
             ...CONFIG.bkt.headers,
             'Content-Type': 'application/json',
-            'Origin': 'https://jgoodell2.github.io'
+            'Accept': 'application/json'
           },
           body: JSON.stringify(params),
           mode: 'cors',
-          credentials: 'include',
           cache: 'no-store'
         });
 
