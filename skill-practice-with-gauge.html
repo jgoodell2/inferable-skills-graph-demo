@@ -116,7 +116,7 @@
     // Shared configuration for xAPI LRS and BKT endpoints
     const CONFIG = {
       xapi: {
-        endpoint: "http://146.190.70.120:8080/xapi/statements",
+        endpoint: "http://146.190.70.120:8080/xapi/",
         credentials: "8d17bca86ccfd3bf25897a70f01846dfbe621f2ff9ddb28c58c60a467aeaf6b1:37b661e683780adb9a76262b310dee32cb6413553da613a7a13621675877bb59"
       },
       bkt: {
@@ -260,7 +260,6 @@
         } else if (actor.account && actor.account.homePage && actor.account.name) {
           userId = `${actor.account.homePage}/users/${actor.account.name}`;
         }
-        
         const [authId, authSecret] = CONFIG.xapi.credentials.split(':');
         const params = {
           competency_id: SKILL_ID,
@@ -270,16 +269,16 @@
           auth_secret: authSecret
         };
 
-            console.log('Params:' + JSON.stringify(params));
-    const url = `${CONFIG.bkt.endpoint}`;
+        console.log('Params:' + JSON.stringify(params));
+        // Build URL with query parameters (GET) instead of sending a body
+        const url = `${CONFIG.bkt.endpoint}?${new URLSearchParams(params).toString()}`;
+        console.log('Fetching BKT URL:', url);
         const resp = await fetch(url, {
-          method: 'POST',
+          method: 'GET',
           headers: {
             ...CONFIG.bkt.headers,
-            'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify(params),
           mode: 'cors',
           cache: 'no-store'
         });

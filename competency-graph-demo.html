@@ -782,21 +782,16 @@
               auth_id: authId,
               auth_secret: authSecret
             };
-            const url = `${CONFIG.bkt.endpoint}`;
-            console.log('BKT API Request:', {
-              url,
-              headers: CONFIG.bkt.headers,
-              params
-            });
-            
+            // Build GET URL with query parameters (no body)
+            const url = `${CONFIG.bkt.endpoint}?${new URLSearchParams(params).toString()}`;
+            console.log('BKT API Request (GET):', { url, headers: CONFIG.bkt.headers, params });
+
             const resp = await fetch(url, {
-              method: 'POST',
+              method: 'GET',
               headers: {
                 ...CONFIG.bkt.headers,
-                'Content-Type': 'application/json',
                 'Origin': 'https://jgoodell2.github.io'
               },
-              body: JSON.stringify(params),
               mode: 'cors',
               credentials: 'include',
               cache: 'no-store'
