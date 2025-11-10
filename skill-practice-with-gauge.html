@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Skill Practice: Proportional Relationships</title>
+  <!-- percent-gauge webcomponent -->
+  <script src="https://jgoodell2.github.io/itemGen/webComponents/percentGauge.js" type="module"></script>
+  <script src="js/cryptojs_v3.1.2.js"></script>
+  <script src="js/xAPIWrapper.js"></script>
+  <script src="js/jimsxapiwrapper.js"></script>
+  <style>
+    .split-container {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+    }
+    .left-pane {
+      flex: 2;
+      padding: 20px;
+      border-right: 1px solid #ccc;
+    }
+    .right-pane {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    i {color: blue;}
+    span.frac {display: inline-block; text-align: center; vertical-align: middle;}
+    span.frac > sup, span.frac > sub {display: block; font: inherit; padding: 0 0.3em;}
+    span.frac > sup {border-bottom: 0.08em solid;}
+    span.frac > span {display: none;}
+    #hintTable {border: 1px solid black; font: 12px Arial, sans-serif; width: 300px;}
+    #hintCell, #hintLabel {padding: 8px;}
+    #hintLabel {padding: 8px; width: 20px; background-color: #dddddd; text-align:center;}
+    #hint1, #hint2, #hint3, #hint4, #hint5, #hint6, #div-correct-feedback, #div-decimal-feedback {visibility: hidden;}
+    #feedback {color: blue; background-color: white; text-align: left; padding: 8px;}
+    .gauge-container {
+      width: 200px;
+      height: 200px;
+      margin-top: 20px;
+    }
+    .skill-label {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="split-container">
+    <div class="left-pane">
+      <h3>Practice: Analyzing Proportional Relationships</h3>
+      <div id="divBackground">
+        <div id="divActivity"><button id="nextitembutton">Start</button></div>
+
+        <!-- Three items with proportional relationship problems -->
+        <div id="item001.html" style="visibility: hidden">
+            <div id="learningActivity">
+              <div id="divStimulus">
+                <p>Solve for <i>r</i>.   (enter answer as a fraction)</p>
+                <p><span class="frac"><sup>4</sup><span>&frasl;</span><sub><i>r</i></sub></span>&nbsp;=&nbsp;<span class="frac"><sup>5</sup><span>&frasl;</span><sub>7</sub></span></p>
+                <p><i>r</i>&nbsp;=&nbsp;<input id="response" type="text"></input></p>
+                <button id="checkResponseButton" onclick="check()">Check Answer</button>
+                <p>Stuck? <button id="hintButton" onclick="nextHint()">Get a hint</button></p>
+              </div>
+              <div id="feedback"></div>
+              <div id="divHints"></div>
+            </div>
+        </div>
+        
+        <!-- Similar structure for other items -->
+        <div id="item002.html" style="visibility: hidden">
+            <!-- Similar structure with different values -->
+            <div id="learningActivity">
+              <div id="divStimulus">
+                <p>Solve for <i>r</i>.   (enter answer as a fraction)</p>
+                <p><span class="frac"><sup>4</sup><span>&frasl;</span><sub><i>r</i></sub></span>&nbsp;=&nbsp;<span class="frac"><sup>3</sup><span>&frasl;</span><sub>10</sub></span></p>
+                <p><i>r</i>&nbsp;=&nbsp;<input id="response" type="text"></input></p>
+                <button id="checkResponseButton" onclick="check()">Check Answer</button>
+                <p>Stuck? <button id="hintButton" onclick="nextHint()">Get a hint</button></p>
+              </div>
+              <div id="feedback"></div>
+              <div id="divHints"></div>
+            </div>
+        </div>
+        
+        <div id="item003.html" style="visibility: hidden">
+            <div id="learningActivity">
+              <div id="divStimulus">
+                <p>Solve for <i>r</i>.   (enter answer as a fraction)</p>
+                <p><span class="frac"><sup>4</sup><span>&frasl;</span><sub><i>r</i></sub></span>&nbsp;=&nbsp;<span class="frac"><sup>5</sup><span>&frasl;</span><sub>9</sub></span></p>
+                <p><i>r</i>&nbsp;=&nbsp;<input id="response" type="text"></input></p>
+                <button id="checkResponseButton" onclick="check()">Check Answer</button>
+                <p>Stuck? <button id="hintButton" onclick="nextHint()">Get a hint</button></p>
+              </div>
+              <div id="feedback"></div>
+              <div id="divHints"></div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-pane">
+      <h3>Mastery Progress</h3>
+      <div class="gauge-container">
+        <percent-gauge id="skill-gauge" gauge-band-color="green" gauge-value-decimal="0.0"></percent-gauge>
+      </div>
+      <div class="skill-label">CCSS.MATH.CONTENT.7.RP.A.2</div>
+      <div class="skill-description">Recognize and represent proportional relationships between quantities.</div>
+    </div>
+  </div>
+
+  <script>
+    // Shared configuration for xAPI LRS and BKT endpoints
+    const CONFIG = {
+      xapi: {
+        endpoint: "https://lrs.inferable.link/xapi/",
+        credentials: "8d17bca86ccfd3bf25897a70f01846dfbe621f2ff9ddb28c58c60a467aeaf6b1:37b661e683780adb9a76262b310dee32cb6413553da613a7a13621675877bb59"
+      },
+      bkt: {
+        endpoint: "https://bkt.inferable.rest",
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    };
+
+    // Fixed skill ID for this practice set
+    const SKILL_ID = "https://example.org/CCSS.MATH.CONTENT.7.RP.A.2";
+
+    // Initialize xAPI configuration
+    const xapiConf = {
+      "endpoint": CONFIG.xapi.endpoint,
+      "auth": "Basic " + toBase64(CONFIG.xapi.credentials)
+    };
+    ADL.XAPIWrapper.changeConfig(xapiConf);
+
+    // Practice item logic
+    const feedbackObjArray = [];
+    var numHints = 0;
+    var currentHint = 0;
+    var currentItemArrayPos = 0;
+    const itemArray = ["item001.html","item002.html","item003.html"];
+
+    function nextItem(){
+      feedbackObjArray.splice(0, feedbackObjArray.length);
+      if (currentItemArrayPos < itemArray.length - 1) currentItemArrayPos++; else currentItemArrayPos = 0;
+      const activityDiv = document.getElementById('divActivity');
+      activityDiv.innerHTML = document.getElementById(itemArray[currentItemArrayPos]).innerHTML;
+      
+      // Set up feedback for each item
+      switch(currentItemArrayPos){
+        case 0:
+          feedbackObjArray.push({match: "28/5", matchtype:"exact", feedback:"Correct! <button onclick='nextItem()'>Next Question</button>"});
+          feedbackObjArray.push({match: ".", matchtype:"substring", feedback:"Enter the answer as a fraction rather than a decimal number."});
+          numHints = 5; currentHint = 0; break;
+        case 1:
+          feedbackObjArray.push({match: "40/3", matchtype:"exact", feedback:"Correct! <button onclick='nextItem()'>Next Question</button>"});
+          numHints = 5; currentHint = 0; break;
+        case 2:
+          feedbackObjArray.push({match: "36/5", matchtype:"exact", feedback:"Correct! <button onclick='nextItem()'>Next Question</button>"});
+          numHints = 5; currentHint = 0; break;
+      }
+    }
+
+    function nextHint(){
+      currentHint++;
+      var hintObjectName = 'hint' + currentHint;
+      var el = document.getElementById(hintObjectName);
+      if (el) el.style.visibility = 'visible';
+    }
+
+    function send_statement(item, competency, response, success){
+      var actor = {
+        "objectType": "Agent",
+        "openid": "https://example.com/users/user-v1:1abcb33beeb811dca15f0ac3e47b887b"
+      };  
+
+      var verb = {
+        "id": "http://adlnet.gov/expapi/verbs/answered",
+        "display": { "en-US": "answered" }
+      };
+
+      var object = {
+        "id": "https://example.com/activity/dca15f0ac3e47b88d91abcb33beeb811_" + item,
+        "objectType": "Activity",
+        "definition": {
+          "name": { "en-US": "Proportion practice item " + item },
+          "description": { "en-US": "Practice item for analyzing proportional relationships" },
+          "type": "http://adlnet.gov/expapi/activities/question"
+        }
+      };
+
+      var result = {
+        "response": response,
+        "success": success,
+        "score": { "scaled": success ? 1.0 : 0.0 }
+      };
+
+      var context = {
+        "contextActivities": {
+          "category": [{
+            "id": competency,
+            "objectType": "Activity",
+            "definition": {
+              "name": { "en-US": "CCSS.MATH.CONTENT.7.RP.A.2" },
+              "type": "http://adlnet.gov/expapi/activities/competency"
+            },
+          }]
+        }
+      };
+
+      var statement = {
+        "actor": actor,
+        "verb": verb,
+        "object": object,
+        "result": result,
+        "context": context,
+        "timestamp": new Date().toISOString()
+      };
+
+      try {
+        var result = ADL.XAPIWrapper.sendStatement(statement);
+        console.log('Statement sent:', result);
+      } catch (error) {
+        console.error('Error sending statement:', error);
+      }
+    }
+
+    function check(){
+      var success = false;
+      var responseValueText = (document.getElementById('response') || {value:''}).value;
+      var fb = document.getElementById('feedback');
+      if (fb) fb.innerHTML = 'Try again.';
+      for (let i=0; i<feedbackObjArray.length; i++){
+        if (feedbackObjArray[i].match == responseValueText){
+          if (fb) fb.innerHTML = feedbackObjArray[i].feedback;
+          if (i==0) success = true;
+        }
+      }
+      var item = '00' + (currentItemArrayPos + 1);
+      send_statement(item, SKILL_ID, responseValueText, success);
+      updateMastery();
+    }
+
+    async function updateMastery() {
+      try {
+        const actor = ADL.XAPIWrapper.lrs.actor || {
+          "objectType": "Agent",
+          "openid": "https://example.com/users/user-v1:1abcb33beeb811dca15f0ac3e47b887b"
+        };
+        
+        let userId;
+        if (actor.mbox) {
+          userId = actor.mbox;
+        } else if (actor.openid) {
+          userId = actor.openid;
+        } else if (actor.account && actor.account.homePage && actor.account.name) {
+          userId = `${actor.account.homePage}/users/${actor.account.name}`;
+        }
+        
+        const [authId, authSecret] = CONFIG.xapi.credentials.split(':');
+        const params = {
+          competency_id: SKILL_ID,
+          user_id: userId,
+          lrs_url: CONFIG.xapi.endpoint,
+          auth_id: authId,
+          auth_secret: authSecret
+        };
+
+        const url = `${CONFIG.bkt.endpoint}`;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            ...CONFIG.bkt.headers,
+            'Content-Type': 'application/json',
+            'Origin': 'https://jgoodell2.github.io'
+          },
+          body: JSON.stringify(params),
+          mode: 'cors',
+          credentials: 'include',
+          cache: 'no-store'
+        });
+
+        if (!resp.ok) {
+          throw new Error(`HTTP error! status: ${resp.status}`);
+        }
+
+        const json = await resp.json();
+        const gauge = document.getElementById('skill-gauge');
+        if (gauge && json.prediction !== undefined) {
+          gauge.setAttribute('gauge-value-decimal', json.prediction.toString());
+        }
+      } catch(err) {
+        console.error('Error updating mastery:', err);
+      }
+    }
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      nextItem();
+      updateMastery();
+      const nib = document.getElementById('nextitembutton');
+      if (nib) nib.addEventListener('click', nextItem);
+    });
+  </script>
+</body>
+</html>
