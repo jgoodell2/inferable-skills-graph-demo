@@ -789,11 +789,9 @@
             const resp = await fetch(url, {
               method: 'GET',
               headers: {
-                ...CONFIG.bkt.headers,
-                'Origin': 'https://jgoodell2.github.io'
+                ...CONFIG.bkt.headers
               },
               mode: 'cors',
-              credentials: 'include',
               cache: 'no-store'
             });
             console.log('BKT API Response status:', resp.status, resp.statusText);
