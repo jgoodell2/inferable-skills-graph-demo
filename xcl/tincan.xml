@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tincan xmlns="http://projecttincan.com/tincan.xsd">
+  <activities>
+    <activity id="urn:uuid:marketing-budget-battle-au">
+      <name>Conflict Resolution Practice — The Marketing Budget Battle</name>
+      <description xml:lang="en-US">
+        Scenario-based interactive exercise where the learner practices diagnosing and resolving a conflict
+        between two project managers over a marketing budget. The learner progresses through three steps:
+        Diagnose, Mediate, and Formalize — receiving feedback and sending xAPI statements for each action.
+      </description>
+      <launch>au.html</launch>
+      <activityType>http://adlnet.gov/expapi/activities/lesson</activityType>
+    </activity>
+  </activities>
+
+  <launches>
+    <launch activity="urn:uuid:marketing-budget-battle-au">
+      <url>au.html</url>
+      <title>Launch: The Marketing Budget Battle</title>
+    </launch>
+  </launches>
+
+  <metadata>
+    <schema>1.0</schema>
+    <version>1.0.3</version>
+    <author>
+      <name>INFERable, a Public Benefit Corporation</name>
+      <homePage>https://inferable.app/</homePage>
+    </author>
+    <generator>xAPI Package Generator</generator>
+  </metadata>
+</tincan>
+

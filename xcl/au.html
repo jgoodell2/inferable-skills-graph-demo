@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Conflict Resolution Practice — The Marketing Budget Battle</title>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;sans-serif;color:#111}
+  body{margin:0;padding:24px;max-width:900px;margin-left:auto;margin-right:auto;background:#f7f8fb}
+  header{background:#2b6cb0;color:white;padding:18px;border-radius:10px}
+  h1{margin:0;font-size:20px}
+  .card{background:white;padding:18px;border-radius:10px;margin-top:16px;box-shadow:0 6px 18px rgba(11,22,50,0.06)}
+  .question{margin-top:10px}
+  .choices{margin-top:12px}
+  label.choice{display:block;padding:10px;border-radius:8px;border:1px solid #e6eef8;margin-bottom:8px;cursor:pointer}
+  label.choice input{margin-right:10px}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:14px}
+  button{background:#2b6cb0;color:white;border:none;padding:10px 14px;border-radius:8px;cursor:pointer}
+  button[disabled]{opacity:0.5;cursor:not-allowed}
+  .feedback{margin-top:12px;padding:12px;border-radius:8px;background:#f1f6ff;border:1px solid #d6e8ff}
+  footer{margin-top:18px;font-size:13px;color:#555}
+  .config{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .config input{padding:8px;border-radius:6px;border:1px solid #cfd8e3}
+  .log{font-family:monospace;background:#0b1220;color:#d8f1ff;padding:12px;border-radius:8px;margin-top:12px;overflow:auto;max-height:240px}
+  .stage{font-weight:600;color:#2b6cb0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Conflict Resolution Practice — The Marketing Budget Battle</h1>
+</header>
+
+<div class="card" id="intro">
+  <p>You are the manager for Sarah and Mark, two experienced project managers who disagree on the Q3 marketing budget. Use this interactive exercise to practice diagnosing conflict, facilitating dialogue, and formalizing a lasting resolution.</p>
+  <p class="stage">Status: <span id="status">Not started</span></p>
+
+  <div style="margin-top:12px">
+    <button id="startBtn">Start Exercise</button>
+  </div>
+</div>
+
+<div id="au" style="display:none">
+  <div class="card" id="stepCard">
+    <h2 id="stepTitle">Step</h2>
+    <div id="scenarioText"></div>
+    <form id="choicesForm" class="question" onsubmit="return false;">
+      <div class="choices" id="choices"></div>
+      <div class="controls">
+        <button id="submitAnswer" disabled>Submit Answer</button>
+        <button id="nextBtn" style="display:none">Next</button>
+        <div style="margin-left:auto"><small id="progress"></small></div>
+      </div>
+    </form>
+    <div id="feedbackArea"></div>
+  </div>
+
+  <div class="card">
+    <h3>xAPI Statement Log (for debugging)</h3>
+    <div class="log" id="logArea"></div>
+    <div style="margin-top:12px">
+      <strong>Prediction</strong>
+      <div id="predictionContainer" style="margin-top:8px;display:flex;align-items:center;gap:12px">
+        <div id="predictionGaugeWrap" style="width:160px;background:#e6eef8;border-radius:8px;padding:6px;">
+          <div id="predictionGauge" style="height:20px;background:#2b6cb0;width:0%;border-radius:6px;text-align:center;color:white;font-size:12px;line-height:20px">0%</div>
+        </div>
+        <div><small id="predictionText">No prediction yet</small></div>
+      </div>
+    </div>
+    <footer>AU generates xAPI statements (initialized, answered, completed). You can configure an LRS to receive them.</footer>
+  </div>
+</div>
+
+<script>
+/*
+  Simple xAPI statement sender. If LRS configured (endpoint + basic auth), sends statement via fetch.
+  Otherwise, stores in localStorage and prints to on-page log and console.
+*/
+const logArea = document.getElementById('logArea');
+function log(msg){
+  const time = (new Date()).toISOString();
+  logArea.textContent = time + " — " + msg + "\\n" + logArea.textContent;
+  console.log(time + " — " + msg);
+}
+
+function getConfig(){
+  const urlParams = new URLSearchParams(window.location.search);
+  return {
+    endpoint: urlParams.get('endpoint') || '',
+    auth: urlParams.get('auth') || '',
+    registration: urlParams.get('registration') || '',
+    grouping: urlParams.get('grouping') || '',
+    activity_id: urlParams.get('activity_id') || 'urn:uuid:marketing-budget-battle-au'
+  };
+}
+
+// Minimal xAPI statement builder and sender
+async function sendStatement(stmt){
+  const cfg = getConfig();
+  const body = JSON.stringify(stmt);
+  if(cfg.endpoint){
+    try{
+      // Console-level debug: show full endpoint/auth/params and the statement payload
+      console.log('xAPI send - endpoint:', cfg.endpoint,
+                  'auth:', cfg.auth,
+                  'registration:', cfg.registration,
+                  'grouping:', cfg.grouping,
+                  'activity_id:', cfg.activity_id);
+      console.log('xAPI statement payload:', stmt);
+      // On-page log: redact auth for display
+      log('Sending statement to LRS endpoint: ' + cfg.endpoint + ' auth=' + (cfg.auth ? '[REDACTED]' : '') + ' registration=' + cfg.registration + ' grouping=' + cfg.grouping + ' activity_id=' + cfg.activity_id);
+
+      const headers = {"Content-Type":"application/json"};
+      if(cfg.auth){
+        // Allow user to provide username:password and we convert to Basic
+        if(!cfg.auth.startsWith('Basic ')){
+          headers['Authorization'] = 'Basic ' + btoa(cfg.auth);
+        } else {
+          headers['Authorization'] = cfg.auth;
+        }
+      }
+      const res = await fetch(cfg.endpoint + 'statements', {method: 'POST', headers, body, mode:'cors'});
+      if(!res.ok){
+        log('Failed to send statement to LRS: HTTP ' + res.status + ' — stored locally.');
+        storeStatementLocally(stmt);
+      } else {
+        log('Statement sent to LRS: ' + (stmt.verb && stmt.verb.display ? stmt.verb.display['en-US'] : 'unknown'));
+      }
+    }catch(err){
+      log('Error sending to LRS: ' + err + ' — stored locally.');
+      console.error('xAPI send error', err);
+      storeStatementLocally(stmt);
+    }
+  } else {
+    storeStatementLocally(stmt);
+  }
+}
+
+function storeStatementLocally(stmt){
+  const arr = JSON.parse(localStorage.getItem('cmi5_local_statements') || '[]');
+  arr.unshift(stmt);
+  localStorage.setItem('cmi5_local_statements', JSON.stringify(arr));
+  log('Statement stored locally: ' + (stmt.verb && stmt.verb.display ? stmt.verb.display['en-US'] : 'unknown'));
+}
+
+async function getPrediction() {
+  // Get configuration and ensure actor is populated
+  const cfg = getConfig();
+  ensureActor();
+
+  // Derive a simple user identifier string from ACTOR
+  let userId = null;
+  if (typeof ACTOR === 'string') {
+    userId = ACTOR;
+  } else if (ACTOR && ACTOR.mbox) {
+    userId = ACTOR.mbox; // e.g. 'mailto:alice@example.com'
+  } else if (ACTOR && ACTOR.openid) {
+    userId = ACTOR.openid;
+  } else if (ACTOR && ACTOR.account && ACTOR.account.homePage && ACTOR.account.name) {
+    userId = `${ACTOR.account.homePage}/users/${ACTOR.account.name}`;
+  } else if (ACTOR && ACTOR.name) {
+    // last-resort fallback to a name string
+    userId = ACTOR.name;
+  } else {
+    console.error('getPrediction: unable to determine user identifier from ACTOR', ACTOR);
+    return null;
+  }
+
+  const CONFIG = {
+    xapi: {
+      endpoint: cfg.endpoint,
+      credentials: cfg.auth || ''
+    },
+    bkt: {
+      endpoint: 'https://bkt.inferable.rest',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'your-bkt-api-key'
+      }
+    }
+  };
+
+  // Extract auth_id and auth_secret. If credentials are Basic <base64>, decode first.
+  let credentials = CONFIG.xapi.credentials || '';
+  if (credentials.startsWith('Basic ')) {
+    try {
+      // atob is available in browsers
+      const decoded = atob(credentials.slice(6));
+      credentials = decoded;
+    } catch (e) {
+      console.warn('getPrediction: failed to base64-decode Basic auth; using raw credentials', e);
+    }
+  }
+
+  const [authId = '', authSecret = ''] = (credentials || '').split(':');
+
+
+  // Always lowercase competency_id for BKT compatibility
+  let competencyId = (cfg.activity_id || 'urn:uuid:marketing-budget-battle-au').toLowerCase();
+  const params = {
+    user_id: userId,
+    competency_id: competencyId,
+    lrs_url: cfg.endpoint,
+    auth_id: authId,
+    auth_secret: authSecret
+  };
+
+  const url = `${CONFIG.bkt.endpoint}` + '?' + new URLSearchParams(params).toString();
+  console.log('BKT API Request:', { url, headers: CONFIG.bkt.headers, params });
+
+  // Prefer POST flow: attempt to POST JSON to the BKT root endpoint first
+  try {
+    const postBody = {
+      user_id: userId,
+      competency_id: competencyId,
+      lrs_url: cfg.endpoint,
+      auth_id: authId,
+      auth_secret: authSecret
+    };
+
+    const postUrl = CONFIG.bkt.endpoint.replace(/\/$/, '') + '/';
+    console.log('Attempting POST to BKT root:', postUrl, postBody);
+
+    try {
+      const postResp = await fetch(postUrl, {
+        method: 'POST',
+        headers: Object.assign({'Content-Type': 'application/json', 'Accept': 'application/json'}, CONFIG.bkt.headers || {}),
+        body: JSON.stringify(postBody),
+        cache: 'no-store'
+      });
+
+      console.log('BKT POST status:', postResp.status, postResp.statusText);
+
+      if (postResp.ok) {
+        const json = await postResp.json().catch(err => { console.error('Failed to parse BKT POST JSON', err); return null; });
+        console.log('BKT POST JSON:', json);
+        if (json && (json.prediction !== undefined)) updatePredictionUI(json.prediction);
+        return json;
+      } else {
+        console.warn('BKT POST not OK, falling back. Status:', postResp.status);
+        // fall through to token/GET fallback
+      }
+    } catch (postErr) {
+      console.warn('BKT POST error, will attempt fallback flows:', postErr);
+      // fall through to token/GET fallback
+    }
+
+    // If POST to root did not succeed, fall back to token exchange / predict or legacy GET
+    let token = null;
+    if (authId && authSecret) {
+      try {
+        const tokenUrl = CONFIG.bkt.endpoint.replace(/\/$/, '') + '/token';
+        console.log('Requesting token from', tokenUrl);
+        const tokenResp = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + btoa(authId + ':' + authSecret)
+          },
+          body: JSON.stringify({ grant_type: 'client_credentials' }),
+          cache: 'no-store'
+        });
+        if (tokenResp.ok) {
+          const tokJson = await tokenResp.json().catch(() => null);
+          token = tokJson && (tokJson.access_token || tokJson.token);
+          console.log('Received token:', token ? '[REDACTED]' : token);
+        } else {
+          console.warn('Token exchange failed', tokenResp.status, tokenResp.statusText);
+        }
+      } catch (te) {
+        console.warn('Token exchange error', te);
+      }
+    }
+
+    if (token) {
+      // POST a prediction request with the token to /predict
+      const predictUrl = CONFIG.bkt.endpoint.replace(/\/$/, '') + '/predict';
+      const predictBody = { user_id: userId, lrs_url: cfg.endpoint, activity_id: cfg.activity_id, competency_id: competencyId };
+      console.log('POSTing prediction to', predictUrl, predictBody);
+      const predResp = await fetch(predictUrl, {
+        method: 'POST',
+        headers: Object.assign({'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token}, CONFIG.bkt.headers || {}),
+        body: JSON.stringify(predictBody),
+        cache: 'no-store'
+      });
+      if (!predResp.ok) {
+        const text = await predResp.text().catch(() => null);
+        console.error('Prediction POST failed:', predResp.status, predResp.statusText, text);
+        // Fallback to legacy GET below
+      } else {
+        const json = await predResp.json().catch(err => { console.error('Failed to parse prediction JSON', err); return null; });
+        console.log('Prediction POST JSON:', json);
+        if (json && (json.prediction !== undefined)) {
+          updatePredictionUI(json.prediction);
+        }
+        return json;
+      }
+    }
+
+    // Fallback: legacy GET request with credentials in query string
+    const resp = await fetch(url, {
+      headers: CONFIG.bkt.headers,
+      cache: 'no-store'
+    });
+    console.log('BKT API Response status:', resp.status, resp.statusText);
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => null);
+      console.error('BKT request failed:', resp.status, resp.statusText, text);
+      return null;
+    }
+
+    const json = await resp.json().catch(err => {
+      console.error('Failed to parse BKT JSON response', err);
+      return null;
+    });
+    console.log('BKT API Response JSON:', json);
+    if (json && (json.prediction !== undefined)) updatePredictionUI(json.prediction);
+    return json;
+  } catch (err) {
+    console.error('getPrediction fetch error', err);
+    return null;
+  }
+}
+
+// Update small prediction UI
+function updatePredictionUI(pred) {
+  const pct = Math.max(0, Math.min(1, Number(pred || 0)));
+  const percentText = Math.round(pct * 100) + '%';
+  const gauge = document.getElementById('predictionGauge');
+  const txt = document.getElementById('predictionText');
+  if (gauge) {
+    gauge.style.width = (pct * 100) + '%';
+    gauge.textContent = percentText;
+  }
+  if (txt) txt.textContent = 'Predicted success: ' + percentText;
+}
+
+// Utility: create basic actor for demo. In cmi5 this would typically come from LMS.
+// We'll allow the user to enter an actor name by prompt for demo purposes.
+let ACTOR = null;
+function ensureActor(){
+  if(ACTOR) return ACTOR;
+  const urlParams = new URLSearchParams(window.location.search);
+  const actorParam = urlParams.get('actor');
+  if(actorParam){
+    try {
+      ACTOR = JSON.parse(decodeURIComponent(actorParam));
+    } catch(e) {
+      console.error('Failed to parse actor from URL', e);
+    }
+  }
+  if(!ACTOR) {
+    ACTOR = { "objectType":"Agent", "name":"Default Learner", "mbox":"mailto:learner@example.com" };
+  }
+  return ACTOR;
+}
+
+// Statement helpers
+function makeStatement(verbId, verbDisplay, objectId, objectDef){
+  const config = getConfig();
+  const statement = {
+    actor: ensureActor(),
+    verb: { id: verbId, display: {"en-US": verbDisplay} },
+    object: {
+      id: objectId.startsWith('urn:uuid:marketing-budget-battle:') ? objectId : config.activity_id,
+      definition: Object.assign({
+        name: {"en-US": "Conflict Resolution Practice — The Marketing Budget Battle"},
+        description: {"en-US": "Scenario-based practice to diagnose, mediate, and follow up on a budget conflict between two managers."},
+        type: "http://adlnet.gov/expapi/activities/assessment"
+      }, objectDef || {})
+    },
+    context: {
+      registration: config.registration
+    },
+    timestamp: (new Date()).toISOString()
+  };
+
+  // Add grouping if provided
+  if (config.grouping && config.grouping !== '|') {
+    statement.context.contextActivities = {
+      grouping: [{ id: config.grouping }]
+    };
+  }
+
+  return statement;
+}
+
+// Flow definitions: steps with question, choices, feedback
+const steps = [
+  {
+    id: "step1",
+    title: "Step 1: Diagnose the Conflict",
+    scenario: `Your first interaction is a separate meeting with Mark and Sarah to understand the situation. Your goal is to gather information and identify the core issue. Which initial approach best helps you diagnose the conflict effectively?`,
+    choices: [
+      { id: "A", text: "Tell them both that they need to compromise and find a solution immediately to prevent further delays.", correct:false,
+        feedback: "Incorrect. Telling them to compromise immediately skips the crucial diagnostic phase. You need to understand their perspectives and underlying needs before pushing for a solution."},
+      { id: "B", text: `Ask them, "What are you hoping to achieve with your proposed budget allocation, and what do you value in this project?"`, correct:true,
+        feedback: "Correct. This approach uses open-ended questions to uncover their motivations and values, not just their positions."},
+      { id: "C", text: "Focus on the facts: \"Mark, show me the data supporting your new platform; Sarah, show me the historical returns on your channels.\"", correct:false,
+        feedback: "Incorrect. While data is important, focusing solely on facts might escalate the conflict by making it a 'data fight' and ignores the emotional or value-based aspects."},
+      { id: "D", text: "Ask Mark why he's being so reckless and Sarah why she's being so resistant to change.", correct:false,
+        feedback: "Incorrect. This option uses blaming language and takes sides, which destroys trust and impartiality."}
+    ]
+  },
+  {
+    id: "step2",
+    title: "Step 2: Mediate and Facilitate Dialogue",
+    scenario: `After understanding both perspectives (Mark wants growth, Sarah wants stability), you bring them together for a joint meeting in a neutral space. Your role is now a facilitator, not a judge. Which action should you take during this mediation meeting?`,
+    choices: [
+      { id: "A", text: "Present a solution you've devised based on the information gathered: a 50/50 split of the budget.", correct:false,
+        feedback: "Incorrect. Imposing a solution removes their ownership of the outcome."},
+      { id: "B", text: "Allow each person to present their case uninterrupted, and have them speak directly to each other, not you.", correct:true,
+        feedback: "Correct. This empowers both individuals to communicate clearly and practice active listening."},
+      { id: "C", text: "Take an active role in the debate, pointing out flaws in each of their arguments and steering them toward your preferred solution.", correct:false,
+        feedback: "Incorrect. As the manager and mediator, you must remain unbiased."},
+      { id: "D", text: "Focus the entire conversation on past performance issues and any personal friction you observed during your 1:1s.", correct:false,
+        feedback: "Incorrect. This is a distraction from the current issue."}
+    ]
+  },
+  {
+    id: "step3",
+    title: "Step 3: Formalize and Follow-Up",
+    scenario: `Mark and Sarah agreed on a plan where 60% of the budget goes to Sarah's channels and 40% to Mark's platform, with clear metrics established for Mark's project. What is the most effective final step to ensure the resolution is lasting and successful?`,
+    choices: [
+      { id: "A", text: "End the meeting with a handshake and assume the conflict is resolved permanently.", correct:false,
+        feedback: "Incorrect. Without formal documentation and follow-up, there's a risk of misinterpretation."},
+      { id: "B", text: "Send a follow-up email outlining the agreed-upon action plan, responsibilities, and a future check-in date.", correct:true,
+        feedback: "Correct. Documenting the plan and scheduling a follow-up ensures alignment and accountability."},
+      { id: "C", text: "Inform their teams about the solution so they can publicly hold Mark and Sarah accountable.", correct:false,
+        feedback: "Incorrect. Public accountability can be punitive and damaging."},
+      { id: "D", text: "Immediately shift all future budget allocation decisions to the department head to avoid future conflicts.", correct:false,
+        feedback: "Incorrect. This removes opportunities to develop conflict resolution skills."}
+    ]
+  }
+];
+
+let current = 0;
+
+function renderStep(idx){
+  const step = steps[idx];
+  document.getElementById('stepTitle').textContent = step.title;
+  document.getElementById('scenarioText').innerHTML = "<p>" + step.scenario + "</p>";
+  const choicesDiv = document.getElementById('choices');
+  choicesDiv.innerHTML = '';
+  step.choices.forEach(c=>{
+    const id = 'choice_' + idx + '_' + c.id;
+    const label = document.createElement('label');
+    label.className = 'choice';
+    label.innerHTML = `<input type="radio" name="choice" value="${c.id}" id="${id}"/> <strong>${c.id}.</strong> ${c.text}`;
+    choicesDiv.appendChild(label);
+  });
+  document.getElementById('progress').textContent = 'Question ' + (idx+1) + ' of ' + steps.length;
+  document.getElementById('submitAnswer').disabled = true;
+  document.getElementById('nextBtn').style.display = 'none';
+  document.getElementById('feedbackArea').innerHTML = '';
+  // enable submit when a choice selected
+  const radios = choicesDiv.querySelectorAll('input[type=radio]');
+  radios.forEach(r=>{
+    r.addEventListener('change', ()=> document.getElementById('submitAnswer').disabled = false);
+  });
+  // record an "experienced" statement for the activity step
+  const experiencedStmt = makeStatement(
+    "http://adlnet.gov/expapi/verbs/experienced",
+    "experienced",
+    "urn:uuid:marketing-budget-battle:" + step.id,
+    {description: { "en-US": step.title }, type: "http://adlnet.gov/expapi/activities/interaction"}
+  );
+  sendStatement(experiencedStmt);
+}
+
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  ensureActor();
+  // save config prompt? not needed.
+  document.getElementById('intro').style.display = 'none';
+  document.getElementById('au').style.display = 'block';
+  document.getElementById('status').textContent = 'In progress';
+  log('Exercise started by ' + ACTOR.name);
+  // initialized statement
+  const initStmt = makeStatement("http://adlnet.gov/expapi/verbs/initialized","initialized","urn:uuid:marketing-budget-battle:au");
+  await sendStatement(initStmt);
+  // fetch an initial prediction and update UI (non-blocking)
+  getPrediction().then(res=>console.log('Initial getPrediction result', res)).catch(e=>console.warn('Initial prediction error', e));
+  renderStep(0);
+});
+
+document.getElementById('submitAnswer').addEventListener('click', async ()=>{
+  const radios = document.querySelectorAll('#choices input[type=radio]');
+  let chosen = null;
+  radios.forEach(r=>{ if(r.checked) chosen = r.value; });
+  if(!chosen) return;
+  const step = steps[current];
+  const choice = step.choices.find(c=>c.id === chosen);
+  // show feedback
+  const fb = document.getElementById('feedbackArea');
+  fb.innerHTML = `<div class="feedback"><strong>Feedback — ${choice.correct ? "Correct" : "Incorrect"}</strong><p>${choice.feedback}</p></div>`;
+  document.getElementById('submitAnswer').style.display = 'none';
+  document.getElementById('nextBtn').style.display = 'inline-block';
+  // record answered statement
+  const ansStmt = makeStatement(
+    "http://adlnet.gov/expapi/verbs/answered",
+    "answered",
+    "urn:uuid:marketing-budget-battle:" + step.id,
+    {
+      description: {"en-US": step.title},
+      interactionType: "choice",
+      correctResponsesPattern: [ step.choices.filter(c=>c.correct).map(c=>c.id).join('[,]') ],
+      choices: step.choices.map(c=>({id:c.id, description:{'en-US': c.text}}))
+    }
+  );
+  // attach result object
+  ansStmt.result = {
+    response: chosen,
+    success: !!choice.correct,
+    completion: false,
+    duration: "PT0S"
+  };
+  await sendStatement(ansStmt);
+  log('Answered ' + step.id + ': ' + chosen + ' (success: ' + !!choice.correct + ')');
+  // request an updated prediction after answering (non-blocking)
+  getPrediction().then(r=>console.log('Post-answer prediction', r)).catch(e=>console.warn('Prediction after answer failed', e));
+});
+
+document.getElementById('nextBtn').addEventListener('click', async ()=>{
+  current++;
+  document.getElementById('submitAnswer').style.display = 'inline-block';
+  if(current >= steps.length){
+    // completed
+    document.getElementById('status').textContent = 'Completed';
+    document.getElementById('stepCard').innerHTML = '<h2>Exercise complete</h2><p>Well done — you completed the Conflict Resolution Practice Exercise.</p>';
+    // Add gague here
+     document.getElementById('stepCard').innerHTML += '<p>Fetching your skill prediction from the BKT model...</p>';
+    await getPrediction();
+    // completed statement  
+    const compStmt = makeStatement("http://adlnet.gov/expapi/verbs/completed","completed","urn:uuid:marketing-budget-battle:au");
+    compStmt.result = { completion: true, success: true, duration: "PT0S" };
+    await sendStatement(compStmt);
+    log('Exercise completed.');
+    return;
+  }
+  renderStep(current);
+});
+
+// On page load
+window.addEventListener('load', ()=>{
+  const arr = JSON.parse(localStorage.getItem('cmi5_local_statements') || '[]');
+  if(arr.length) log('Found ' + arr.length + ' locally stored statement(s).');
+});
+</script>
+</body>
+</html>
