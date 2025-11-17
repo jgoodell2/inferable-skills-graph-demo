@@ -285,9 +285,9 @@
         const url = `${CONFIG.bkt.endpoint}?${new URLSearchParams(params).toString()}`;
         console.log('Fetching BKT URL:', url);
         const resp = await fetch(url, {
-          method: 'POST',
+          method: 'GET',
           headers: {
-          'Accept': 'application/json'
+            'Accept': 'application/json'
           },
           mode: 'cors',
           cache: 'no-store'
@@ -298,6 +298,7 @@
         }
 
         const json = await resp.json();
+        console.log('BKT response json:', json);
         const gauge = document.getElementById('skill-gauge');
         if (gauge && json.prediction !== undefined) {
           gauge.setAttribute('gauge-value-decimal', json.prediction.toString());
