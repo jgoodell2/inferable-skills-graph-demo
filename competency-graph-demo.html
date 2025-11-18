@@ -356,7 +356,7 @@
     // Shared configuration for xAPI LRS and BKT endpoints
     const CONFIG = {
       xapi: {
-        endpoint: "https://lrs.inferable.link/xapi/",
+        endpoint: "http://146.190.70.120:8080/xapi/",
         credentials: "8d17bca86ccfd3bf25897a70f01846dfbe621f2ff9ddb28c58c60a467aeaf6b1:37b661e683780adb9a76262b310dee32cb6413553da613a7a13621675877bb59"
       },
       bkt: {
@@ -549,7 +549,7 @@
       calculatePositions(targetNodeId,0);
       positions.forEach(position => {
         const node = nodes.get(position.id);
-        createCompetencyNode(position.id, node['scd:competencyStatement'], node['scd:referenceCode'], position.x, position.y, 0.0);
+        createCompetencyNode(position.id, node['scd:competencyStatement'], node['scd:referenceCode'], position.x, position.y, 0.01);
       });
 
       // Draw arrows after DOM positions exist
@@ -803,16 +803,45 @@
             const json = await resp.json();
             console.log('BKT API Response for', node['scd:referenceCode'], ':', json);
             
-            const gauge = document.getElementById('gauge-' + nodeId);
-            if (gauge && json.prediction !== undefined) {
-              gauge.setAttribute('gauge-value-decimal', json.prediction.toString());
-              console.log(`Updated gauge for ${node['scd:referenceCode']} to ${json.prediction}`);
+            // Helper function to update gauge with retry
+            const updateGaugeWithRetry = (gaugeId, value, attempts = 3) => {
+              const gauge = document.getElementById(gaugeId);
+              if (gauge) {
+                gauge.setAttribute('gauge-value-decimal', value.toString());
+                return true;
+              } else if (attempts > 0) {
+                // Gauge might not be ready yet, retry after a short delay
+                setTimeout(() => updateGaugeWithRetry(gaugeId, value, attempts - 1), 100);
+              } else {
+                console.warn(`Gauge element ${gaugeId} not found after retries`);
+              }
+              return false;
+            };
+            
+            // Validate prediction value and use default if invalid
+            let predictionValue = json.prediction;
+            if (predictionValue === undefined || predictionValue === null || isNaN(predictionValue)) {
+              predictionValue = 0.01; // Default to 1% if no valid prediction
+              console.warn(`No valid prediction for ${node['scd:referenceCode']}, using default 0.01`);
             } else {
-              console.warn(`Could not update gauge for ${node['scd:referenceCode']}:`, 
-                !gauge ? 'Gauge element not found' : 'No prediction in response');
+              // Ensure prediction is between 0 and 1
+              predictionValue = Math.max(0, Math.min(1, predictionValue));
             }
+            
+            updateGaugeWithRetry('gauge-' + nodeId, predictionValue);
+            console.log(`Updated gauge for ${node['scd:referenceCode']} to ${predictionValue}`);
           } catch(err){ 
-            console.error('Error fetching BKT for', node['scd:referenceCode'], nodeId, '\nError:', err, '\nStack:', err.stack);
+            console.warn('Error fetching BKT for', node['scd:referenceCode'], '- using default value 0.01:', err.message);
+            // Set a default value when BKT is not available with retry
+            const updateGaugeWithRetry = (gaugeId, value, attempts = 3) => {
+              const gauge = document.getElementById(gaugeId);
+              if (gauge) {
+                gauge.setAttribute('gauge-value-decimal', value.toString());
+              } else if (attempts > 0) {
+                setTimeout(() => updateGaugeWithRetry(gaugeId, value, attempts - 1), 100);
+              }
+            };
+            updateGaugeWithRetry('gauge-' + nodeId, 0.01);
           }
         }
       } catch(e){ console.error('Error rendering graph', e); }
